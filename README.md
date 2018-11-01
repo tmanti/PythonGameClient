@@ -1,6 +1,5 @@
 # game
 fortnitemmorpg lol
-~~~~~~~~~~~~~~~~~~
 
 #Just a game made with python
 not much special, just a game made with  python, using pygame.
