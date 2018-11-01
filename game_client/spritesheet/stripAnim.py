@@ -1,4 +1,4 @@
-from game_client.spritesheet.sheet import spritesheet
+from gameFiles.game_client.spritesheet.sheet import spritesheet
 
 #also taken from https://www.pygame.org/wiki/Spritesheet
 

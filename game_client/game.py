@@ -2,8 +2,8 @@ import socket
 import threading
 import pygame
 from time import sleep
-from game_client.spritesheet.sheet import spritesheet
-from game_client.spritesheet.stripAnim import SpriteStripAnim
+from gameFiles.game_client.spritesheet.sheet import spritesheet
+from gameFiles.game_client.spritesheet.stripAnim import SpriteStripAnim
 import json
 import copy
 
