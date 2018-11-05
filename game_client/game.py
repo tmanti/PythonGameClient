@@ -28,6 +28,12 @@ display.set_caption("Fortnite MMO RPG Bullet Hell")
 
 w,h = pygame.display.get_surface().get_size()
 
+def text_to_screen(screen, text, x, y, size = 50, color = (200, 000, 000), font_type = 'font/8-BIT-WONDER.ttf'):
+    text = str(text)
+    font = pygame.font.Font(font_type, size)
+    text = font.render(text, True, color)
+    screen.blit(text, (x, y))
+
 class pos():
     def __init__(self, x, y):
         self.x = x
@@ -210,15 +216,15 @@ class Player():#player class
         else:
             self.Idle = False
 
+        #attacking
+
+
         updateScreen()
 
         
 
     def attackToggle(self):
-        if self.attacking == True:
-            self.attacking = False
-        elif self.attacking == False:
-            self.attacking = True
+        self.attacking = not self.attacking
 
     def updatePlayers(self):
         for x in client.playerList:
@@ -260,13 +266,18 @@ class server_player():
     def move(self, playerPos):
         self.position.x = self.curPos.x - playerPos.x
         self.position.y = self.curPos.y - playerPos.y
+# - - END CLASSES - -
 
+#connect to server
 while True:
     try:
         client = Client('127.0.0.1')
         break
     except:
         print("unable to conenct to server")
+
+        #text_to_screen(screen, "Loading Error", 0, 0)
+
         for e in p.event.get():
             if e.type == p.QUIT:
                 p.quit()
