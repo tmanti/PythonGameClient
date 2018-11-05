@@ -57,6 +57,13 @@ class packet_handler:
         toSend = json.dumps(["init", data, "server"])
         connection.send(toSend.encode())
 
+    def sendDisconnect(self, connection, data):
+        print(data)
+        for x in data:
+            data[x][1] = [data[x][1].x, data[x][1].y]
+        toSend = json.dumps(["disconnect", data, "server"])
+        connection.send(toSend.encode())
+
 class Player():
     def __init__(self, player_data):
         self.lastFaced = player_data[0]  # last faced
@@ -74,17 +81,15 @@ class Server:
         self.sock.bind(('0.0.0.0', 10000))
         self.sock.listen(1)
 
+    def commands(self):
+        while True:
+            cmd = input()
+            if cmd == "list":
+                print(self.players)
+
+
     def handler(self, c, a):
         while True:
-            """data = c.recv(1024)
-            for connection in self.connections:
-            connection.send(data)
-            if not data:
-            print(str(a[0]) + ':' + str(a[1]), "connected")
-            self.connections.remove(c)
-            c.close()
-            break"""
-
             try:
                 data = c.recv(1024)
                 self.packet.handlePacket(data, str(a[0]), str(a[1]))#data of packet, who sent it
@@ -93,14 +98,18 @@ class Server:
                 self.connections.remove([c, a])
                 c.close()
                 del self.players[str(a[0]) + ":" +  str(a[1])]
+                self.packet.sendDisconnect(c, self.players)
                 break
 
     def run(self):
         while True:
             c, a = self.sock.accept()
-            cThread = threading.Thread(target=self.handler, args=(c, a))
-            cThread.daemon = True
-            cThread.start()
+
+            #begin listening for player packets
+            lThread = threading.Thread(target=self.handler, args=(c, a))
+            lThread.daemon = True
+            lThread.start()
+
             self.connections.append([c, a])
             print(str(a[0]) + ':' + str(a[1]), "connected")
             self.packet.sendInit(c, server.players)

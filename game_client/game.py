@@ -23,7 +23,7 @@ RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
 
-GAME_FONT = pygame.font.Font("8-bit.ttf", 115)
+GAME_FONT = pygame.font.Font("8-bit.ttf", 27)
 
 screen = display.set_mode((800, 800))#, pygame.FULLSCREEN)
 display.set_caption("Fortnite MMO RPG Bullet Hell")
@@ -38,6 +38,8 @@ def text_to_screen(text, x, y):
     textSurf, textRect = text_obj(text, GAME_FONT)
     textRect.center = ((w/2), (h/2))
     screen.blit(textSurf, textRect)
+
+    display.update()
 
 class pos():
     def __init__(self, x, y):
