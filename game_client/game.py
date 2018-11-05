@@ -23,16 +23,21 @@ RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
 
+GAME_FONT = pygame.font.Font("8-bit.ttf", 115)
+
 screen = display.set_mode((800, 800))#, pygame.FULLSCREEN)
 display.set_caption("Fortnite MMO RPG Bullet Hell")
 
 w,h = pygame.display.get_surface().get_size()
 
-def text_to_screen(screen, text, x, y, size = 50, color = (200, 000, 000), font_type = 'font/8-BIT-WONDER.ttf'):
-    text = str(text)
-    font = pygame.font.Font(font_type, size)
-    text = font.render(text, True, color)
-    screen.blit(text, (x, y))
+def text_obj(text, font):
+    textSurface = font.render(text, True, WHITE)
+    return textSurface, textSurface.get_rect()
+
+def text_to_screen(text, x, y):
+    textSurf, textRect = text_obj(text, GAME_FONT)
+    textRect.center = ((w/2), (h/2))
+    screen.blit(textSurf, textRect)
 
 class pos():
     def __init__(self, x, y):
@@ -276,7 +281,7 @@ while True:
     except:
         print("unable to conenct to server")
 
-        #text_to_screen(screen, "Loading Error", 0, 0)
+        text_to_screen("Loading Error", 0, 0)
 
         for e in p.event.get():
             if e.type == p.QUIT:
@@ -313,6 +318,7 @@ def updateScreen():
 
     screen.blit(player.playerAnim, (w/2, h/2))#draw player onto the screen
     pygame.display.flip()#update the entire canvas
+
 
 while run:
     for e in p.event.get():
