@@ -1,6 +1,7 @@
 import threading
 import socket
 import json
+import copy
 
 class pos():
     def __init__(self, x, y):
@@ -42,27 +43,29 @@ class packet_handler:
     def player_idle(self, ip, port, packet_pass):
         self.sendPacket(ip, port, packet_pass)
 
-    def sendPacket(self, ip, port, data):
-        #print(data)
+    def sendPacket(self, ip, port, dataREF):
+        data = copy.deepcopy(dataREF)
         for connection in server.connections:
             if not(str(connection[1][0]) == ip and str(connection[1][1]) == port):
                 data.append(str(ip) + ':' + str(port))
                 toSend = json.dumps(data) + "\n"
                 connection[0].send(toSend.encode())
 
-    def sendInit(self, connection, data):
-        print(data)
+    def sendInit(self, connection, dataREF):
+        data = copy.deepcopy(dataREF)
         for x in data:
             data[x][1] = [data[x][1].x, data[x][1].y]
         toSend = json.dumps(["init", data, "server"])
         connection.send(toSend.encode())
 
-    def sendDisconnect(self, connection, data):
-        print(data)
+    def sendDisconnect(self, dataREF):
+        data = copy.deepcopy(dataREF)
         for x in data:
             data[x][1] = [data[x][1].x, data[x][1].y]
         toSend = json.dumps(["disconnect", data, "server"])
-        connection.send(toSend.encode())
+
+        for connection in server.connections:
+            connection[0].send(toSend.encode())
 
 class Player():
     def __init__(self, player_data):
@@ -70,6 +73,7 @@ class Player():
         self.position = player_data[1]
         self.playerAnim = self.playerWalk[self.lastFaced].next()  # current animation player is showing
         self.speed = player_data[2]
+
 
 class Server:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -80,12 +84,6 @@ class Server:
     def __init__(self):
         self.sock.bind(('0.0.0.0', 10000))
         self.sock.listen(1)
-
-    def commands(self):
-        while True:
-            cmd = input()
-            if cmd == "list":
-                print(self.players)
 
 
     def handler(self, c, a):
@@ -98,10 +96,11 @@ class Server:
                 self.connections.remove([c, a])
                 c.close()
                 del self.players[str(a[0]) + ":" +  str(a[1])]
-                self.packet.sendDisconnect(c, self.players)
+                self.packet.sendDisconnect(self.players)
                 break
 
     def run(self):
+        cmd = commandHandler(server)
         while True:
             c, a = self.sock.accept()
 
@@ -113,6 +112,18 @@ class Server:
             self.connections.append([c, a])
             print(str(a[0]) + ':' + str(a[1]), "connected")
             self.packet.sendInit(c, server.players)
+
+class commandHandler:
+    def __init__(self, ref):
+        commandThread = threading.Thread(target=self.commands)
+        commandThread.daemon = True
+        commandThread.start()
+
+    def commands(self):
+        while True:
+            cmd = input()
+            if cmd == "list":
+                print(server.players)
 
 
 server = Server()
