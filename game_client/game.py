@@ -66,6 +66,8 @@ class packet_handler:
                     self.init_playerList(packetData)
                 if packetType == "playerIdle":
                     self.playerIdle(packetData, address)
+                if packetType == "disconnect":
+                    self.playerDisconnect(packetData)
 
     def init_playerList(self, packetData):
         for x in packetData:
@@ -78,6 +80,9 @@ class packet_handler:
         sp = server_player(playerData)
         client.playerList[address] = sp
         player.updatePlayers()
+
+    def playerDisconnect(self, packetData):
+        del client.playerList[packetData]
 
     def playerUpdate(self, playerData, address):
         #try:
@@ -274,6 +279,10 @@ class server_player():
         self.position.x = self.curPos.x - playerPos.x
         self.position.y = self.curPos.y - playerPos.y
 # - - END CLASSES - -
+
+# -- LOG IN --
+
+# -- Once successfully auth'd with server --
 
 #connect to server
 while True:
