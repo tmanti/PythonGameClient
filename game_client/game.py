@@ -2,10 +2,9 @@ import socket
 import threading
 import pygame
 from time import sleep
-from gameFiles.game_client.spritesheet.sheet import spritesheet
-from gameFiles.game_client.spritesheet.stripAnim import SpriteStripAnim
 import json
 import copy
+import os
 
 p = pygame
 
@@ -23,7 +22,10 @@ RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
 
-GAME_FONT = pygame.font.Font("8-bit.ttf", 27)
+try:
+    GAME_FONT = pygame.font.Font("8-bit.ttf", 27)
+except:
+    GAME_FONT = pygame.font.SysFont("Arial", 27)
 
 screen = display.set_mode((800, 800))#, pygame.FULLSCREEN)
 display.set_caption("Fortnite MMO RPG Bullet Hell")
@@ -40,6 +42,83 @@ def text_to_screen(text, x, y):
     screen.blit(textSurf, textRect)
 
     display.update()
+
+class SpriteStripAnim(object):
+    """sprite strip animator
+
+    This class provides an iterator (iter() and next() methods), and a
+    __add__() method for joining strips which comes in handy when a
+    strip wraps to the next row.
+    """
+
+    def __init__(self, filename, rect, count, colorkey=None, loop=False, frames=1):
+        """construct a SpriteStripAnim
+
+        filename, rect, count, and colorkey are the same arguments used
+        by spritesheet.load_strip.
+
+        loop is a boolean that, when True, causes the next() method to
+        loop. If False, the terminal case raises StopIteration.
+
+        frames is the number of ticks to return the same image before
+        the iterator advances to the next image.
+        """
+        self.filename = filename
+        ss = spritesheet(filename)
+        self.images = ss.load_strip(rect, count, colorkey)
+        self.i = 0
+        self.loop = loop
+        self.frames = frames
+        self.f = frames
+
+    def iter(self):
+        self.i = 0
+        self.f = self.frames
+        return self
+
+    def next(self):
+        if self.i >= len(self.images):
+            if not self.loop:
+                raise StopIteration
+            else:
+                self.i = 0
+        image = self.images[self.i]
+        self.f -= 1
+        if self.f == 0:
+            self.i += 1
+            self.f = self.frames
+        return image
+
+    def __add__(self, ss):
+        self.images.extend(ss.images)
+        return self
+
+class spritesheet(object):
+    def __init__(self, filename):
+        self.sheet = pygame.image.load(filename).convert()
+    # Load a specific image from a specific rectangle
+    def image_at(self, rectangle, colorkey = None):
+        "Loads image from x,y,x+offset,y+offset"
+        rect = pygame.Rect(rectangle)
+        image = pygame.Surface(rect.size).convert()
+        image.blit(self.sheet, (0, 0), rect)
+        x,y = image.get_size()
+        image = pygame.transform.scale(image, (x*4, y*4))
+        if colorkey is not None:
+            if colorkey is -1:
+                colorkey = image.get_at((0,0))
+            image.set_colorkey(colorkey, pygame.RLEACCEL)
+        return image
+    # Load a whole bunch of images and return them as a list
+    def images_at(self, rects, colorkey = None):
+        "Loads multiple images, supply a list of coordinates"
+        return [self.image_at(rect, colorkey) for rect in rects]
+    # Load a whole strip of images
+    def load_strip(self, rect, image_count, colorkey = None):
+        "Loads a strip of images and returns them as a list"
+        tups = [(rect[0]+rect[2]*x, rect[1], rect[2], rect[3])
+                for x in range(image_count)]
+        return self.images_at(tups, colorkey)
 
 class pos():
     def __init__(self, x, y):
@@ -100,14 +179,17 @@ class packet_handler:
         toSend = json.dumps(data)+"\n"
         client.sock.send(toSend.encode())
 
-    def player_join(self, playerData):
-        self.send(["playerJoin", playerData])
+    #def player_join(self, playerData):
+        #self.send(["playerJoin", playerData])
 
     def player_update(self, playerData):
         self.send(["playerUpdate", playerData])
 
     def player_idle(self, playerData):
         self.send(["playerIdle", playerData])
+
+    def send_login(self, loginData):
+        self.send(["login", loginData])
 
 class Client:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -156,7 +238,7 @@ class Player():#player class
     def __init__(self, playerData):#on creation this runs
         #reference all player walking sprites
         #[0] = down, [1] = right, [2] = up, [3] = left
-        ss = spritesheet('sprites/playerSpriteSheet.png')#get spritesheet reference
+        ss = spritesheet(os.path.abspath('sprites/playerSpriteSheet.png'))#get spritesheet reference
         self.playerIdle = [#list of player idle states
             ss.image_at((0, 8, 8, 8), colorkey=WHITE),#down
             ss.image_at((0, 0, 8, 8), colorkey=WHITE),#right
@@ -164,10 +246,10 @@ class Player():#player class
             ss.image_at((0, 16, 8, 8), colorkey=WHITE)#left
         ]
         self.playerWalk = [
-            SpriteStripAnim('sprites/playerSpriteSheet.png', (8, 8, 8, 8), 2, WHITE, True, frames),#down
-            SpriteStripAnim('sprites/playerSpriteSheet.png', (0, 0, 8, 8), 2, WHITE, True, frames),#right
-            SpriteStripAnim('sprites/playerSpriteSheet.png', (8, 24, 8, 8), 2, WHITE, True, frames),#up
-            SpriteStripAnim('sprites/playerSpriteSheet.png', (0, 16, 8, 8), 2, WHITE, True, frames)#left
+            SpriteStripAnim(os.path.abspath('sprites/playerSpriteSheet.png'), (8, 8, 8, 8), 2, WHITE, True, frames),#down
+            SpriteStripAnim(os.path.abspath('sprites/playerSpriteSheet.png'), (0, 0, 8, 8), 2, WHITE, True, frames),#right
+            SpriteStripAnim(os.path.abspath('sprites/playerSpriteSheet.png'), (8, 24, 8, 8), 2, WHITE, True, frames),#up
+            SpriteStripAnim(os.path.abspath('sprites/playerSpriteSheet.png'), (0, 16, 8, 8), 2, WHITE, True, frames)#left
         ]
         self.lastFaced = playerData[0]#last faced
         self.position = playerData[1]
@@ -249,7 +331,7 @@ class server_player():
     def __init__(self, player_data):
         # reference all player walking sprites
         # [0] = down, [1] = right, [2] = up, [3] = left
-        ss = spritesheet('sprites/playerSpriteSheet.png')  # get spritesheet reference
+        ss = spritesheet(os.path.abspath('sprites/playerSpriteSheet.png'))  # get spritesheet reference
         self.playerIdle = [  # list of player idle states
             ss.image_at((0, 8, 8, 8), colorkey=WHITE),  # down
             ss.image_at((0, 0, 8, 8), colorkey=WHITE),  # right
@@ -257,10 +339,10 @@ class server_player():
             ss.image_at((0, 16, 8, 8), colorkey=WHITE)  # left
         ]
         self.playerWalk = [
-            SpriteStripAnim('sprites/playerSpriteSheet.png', (8, 8, 8, 8), 2, WHITE, True, frames),  # down
-            SpriteStripAnim('sprites/playerSpriteSheet.png', (0, 0, 8, 8), 2, WHITE, True, frames),  # right
-            SpriteStripAnim('sprites/playerSpriteSheet.png', (8, 24, 8, 8), 2, WHITE, True, frames),  # up
-            SpriteStripAnim('sprites/playerSpriteSheet.png', (0, 16, 8, 8), 2, WHITE, True, frames)  # left
+            SpriteStripAnim(os.path.abspath('sprites/playerSpriteSheet.png'), (8, 8, 8, 8), 2, WHITE, True, frames),  # down
+            SpriteStripAnim(os.path.abspath('sprites/playerSpriteSheet.png'), (0, 0, 8, 8), 2, WHITE, True, frames),  # right
+            SpriteStripAnim(os.path.abspath('sprites/playerSpriteSheet.png'), (8, 24, 8, 8), 2, WHITE, True, frames),  # up
+            SpriteStripAnim(os.path.abspath('sprites/playerSpriteSheet.png'), (0, 16, 8, 8), 2, WHITE, True, frames)  # left
         ]
         self.lastFaced = player_data[0]  # last faced
         self.position = player_data[1]
@@ -298,7 +380,15 @@ while True:
             if e.type == p.QUIT:
                 p.quit()
                 quit()
-   
+
+while True:
+    username = input("Username: ")
+    password = input("Password: ")
+    for x in range(100):
+        print("\n")
+    client.packet.send_login([username, password])
+    break
+
 tileList = pygame.sprite.Group()# create tile list grou[
 
 run = True
@@ -310,7 +400,7 @@ player = Player(playerStartStats)
 #p2 = server_player([0, pos(50, 50), 5])
 #client.playerList.append(p2)
 
-client.packet.player_join(player.player_data())
+#client.packet.player_join(player.player_data())
 
 for row in range(0, 64*4, 8*4):#for row in map
     for col in range(0, 64*4, 8*4):#for col in map

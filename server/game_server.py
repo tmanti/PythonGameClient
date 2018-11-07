@@ -2,6 +2,14 @@ import threading
 import socket
 import json
 import copy
+import passlib
+import random
+
+from sqlalchemy import Table, Column, ForeignKey, Integer, MetaData, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 class pos():#position data type
     def __init__(self, x, y):
@@ -19,8 +27,12 @@ class packet_handler:#packet handler
                 packetType = data[0]#get the type
                 packetData = data[1]#get the data
 
-                if packetType == "playerJoin":#if the packet type is a player join
-                    self.player_connect(ip, port, packetData, data)#run player connect method
+                #if packetType == "playerJoin":#if the packet type is a player join
+                    #self.player_connect(ip, port, packetData, data)#run player connect method
+
+                if packetType == "login":
+                    print(packetData)
+                    self.login(ip, port, packetData)
 
                 if packetType == "playerUpdate":#if it is a player update
                     self.player_update(ip, port, packetData, data)#run player update method
@@ -41,6 +53,10 @@ class packet_handler:#packet handler
 
     def player_idle(self, ip, port, packet_pass):#if player idle
         self.sendPacket(ip, port, packet_pass)#send to all other players (really just to stop the anim)
+
+    def login(self, ip, port, userdata):
+        user = session.query(User).filter_by(username=userdata[0]).first()
+        print(user)
 
     def sendPacket(self, ip, port, dataREF):#a method to send a packet to everyone connected
         data = copy.deepcopy(dataREF)#deep copy the data to avoid overwriting
@@ -74,6 +90,7 @@ class Player():#player object
 class Server:#main server class
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)#reference to used socket
     connections = []#connections array
+    conn = {}
     players = {}#connected players dictionary
     packet = packet_handler()#reference to packet handler
 
@@ -117,12 +134,56 @@ class commandHandler:#command handler class
 
     def commands(self):#running in the command thread
         while True:#loop
-            cmd = input()#
-            if cmd == "list":
-                print(server.players)
-            if cmd == "stop" or cmd == "sotp":
-                print("Stopping Server")
-                exit()
+            temp = input()#
+            temp.split()
+            if len(temp) > 0:
+                temp = [_.lower() for _ in temp]
+                cmd = temp[0]
+                args = []
+                if len(temp) > 1:
+                    args = temp[1:]
+                if cmd == "list":
+                    print(server.players)
+                if cmd == "stop" or cmd == "sotp":
+                    print("Stopping Server")
+                    exit()
+                if cmd == "user" and len(args) is not 0:
+                    if args[0] in ["create", "new"]:
+                        session.add(User(id=random.randint(256, 256000), username=args[1], password=args[2], userdata=args[3]))
+                        session.commit()
+
+
+#db base declaration
+Base = declarative_base()
+
+#create user column
+class User(Base):
+    __tablename__ = "User"
+    id = Column(Integer, primary_key=True)
+    username = Column(Text)
+    password = Column(Text)
+    userdata = Column(Text)#a json string
+
+    def __repr__(self):
+        return "<User id=%d username=%s stats=%s>" % (self.id, self.username, self.userdata)
+
+engine = create_engine("sqlite:///database.db")#create engine (ref to db)
+
+Base.metadata.create_all(engine)#create all metadata based on ref to db
+
+DBSession = sessionmaker(bind=engine)#create a session
+
+session = DBSession()#reference to session
+
+# Below adds to database
+# Dont do multiple times, multiple users cannot have the same ids
+#session.add(User(id = 4, name = "Bob"))
+#session.add(User(id = 5, name = "George"))
+session.add(User(id=random.randint(256, 256000), username="a", password="a", userdata="a"))
+session.commit()
+#session.query(User).filter_by(username=name).first()
+
+print(session.query(User).all())
 
 server = Server()
 server.run()
