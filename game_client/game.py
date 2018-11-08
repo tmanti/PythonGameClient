@@ -116,8 +116,7 @@ class spritesheet(object):
     # Load a whole strip of images
     def load_strip(self, rect, image_count, colorkey = None):
         "Loads a strip of images and returns them as a list"
-        tups = [(rect[0]+rect[2]*x, rect[1], rect[2], rect[3])
-                for x in range(image_count)]
+        tups = [(rect[0]+rect[2]*x, rect[1], rect[2], rect[3]) for x in range(image_count)]
         return self.images_at(tups, colorkey)
 
 class pos():
@@ -147,6 +146,8 @@ class packet_handler:
                     self.playerIdle(packetData, address)
                 if packetType == "disconnect":
                     self.playerDisconnect(packetData)
+                if packetType == "login":
+                    self.login(packetData)
 
     def init_playerList(self, packetData):
         for x in packetData:
@@ -175,6 +176,9 @@ class packet_handler:
     def playerIdle(self, data, address):
         client.playerList[address].image = client.playerList[address].playerIdle[data]
 
+    def login(self, packetData):
+        client.auth = packetData
+
     def send(self, data):
         toSend = json.dumps(data)+"\n"
         client.sock.send(toSend.encode())
@@ -191,10 +195,15 @@ class packet_handler:
     def send_login(self, loginData):
         self.send(["login", loginData])
 
+    def send_register(self, registerData):
+        self.send(["register", registerData])
+
 class Client:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     packet = packet_handler()
     playerList = {}
+
+    auth = False
 
     #def sendMsg(self):
         #while True:
@@ -382,14 +391,32 @@ while True:
                 quit()
 
 while True:
-    username = input("Username: ")
-    password = input("Password: ")
-    for x in range(100):
-        print("\n")
-    client.packet.send_login([username, password])
-    break
+    authType = input("login or register: ").lower()
+    if authType == "login":
+        while not client.auth:
+            username = input("Username: ")
+            password = input("Password: ")
+            for x in range(100):
+                print("\n")
+            client.packet.send_login([username, password])
+        else:
+            break
+    elif authType == "register":
+        auth = False
+        while not auth:
+            username = input("Username: ")
+            password = input("Password: ")
+            yesOrNo = input("Are you sure you want these credentials (yes/y): ").lower()
+            if yesOrNo in ["yes", "y"]:
+                client.packet.send_register([username, password])
+                auth = True
+                for x in range(100):
+                    print("\n")
+    else:
+        print("that response is invalid")
 
-tileList = pygame.sprite.Group()# create tile list grou[
+
+tileList = pygame.sprite.Group()# create tile list group
 
 run = True
 
