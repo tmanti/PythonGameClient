@@ -177,6 +177,7 @@ class packet_handler:
         client.playerList[address].image = client.playerList[address].playerIdle[data]
 
     def login(self, packetData):
+        print(packetData)
         client.auth = packetData
 
     def send(self, data):
@@ -393,14 +394,19 @@ while True:
 while True:
     authType = input("login or register: ").lower()
     if authType == "login":
-        while not client.auth:
+        while True:
             username = input("Username: ")
             password = input("Password: ")
-            for x in range(100):
-                print("\n")
             client.packet.send_login([username, password])
-        else:
             break
+        a = True
+        while a:
+            if client.auth == True:
+
+            elif client.authAttempt == True:
+                print("auth failed")
+
+        break
     elif authType == "register":
         auth = False
         while not auth:

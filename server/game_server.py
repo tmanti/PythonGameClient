@@ -5,7 +5,7 @@ import copy
 import uuid
 import scrypt
 
-from sqlalchemy import Table, Column, ForeignKey, Integer, MetaData, Text, Binary
+from sqlalchemy import Table, Column, ForeignKey, Integer, MetaData, Text, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy import create_engine
@@ -16,13 +16,13 @@ Base = declarative_base()
 
 class User(Base):#user class (for DB)
     __tablename__ = "User"#table name to be put under
-    uid = Column(Integer, primary_key=True, unique=True)
+    uid = Column(Text, primary_key=True, unique=True)
     username = Column(Text)#defining username column
-    password = Column(Binary)#defining password column
+    password = Column(String)#defining password column
     userdata = Column(Text)#defining a userdata column # a json string
 
     def __repr__(self):#a return function of helpful information
-        return "<User id=%d username=%s stats=%s>" % (self.uid, self.username, self.userdata)
+        return "<User id=%s username=%s stats=%s>" % (self.uid, self.username, self.userdata)
 
 engine = create_engine("sqlite:///database.db")  # create engine (ref to db)
 Base.metadata.create_all(engine)  # create all metadata based on ref to db
@@ -33,7 +33,7 @@ class dbInterface():
 
     def newUser(self, username, password, userdata):#function to create a new user for the CLI
         uid = str(uuid.uuid4())
-        password = scrypt.hash(password, uid)
+        password = scrypt.hash(password, uid).hex()
         self.session.add(User(uid=uid, username=username, password=password,userdata=userdata))  # add a new user using the specified arguments
         self.session.commit()  # commit to db
 
@@ -93,12 +93,12 @@ class packet_handler:#packet handler
     def player_connect(self, ip, port, playerData, packet_pass):#on player connect
         self.sendPacket(ip, port, packet_pass)#send a packet to all other players (same packet recieved)
         playerData[1] = pos(playerData[1][0], playerData[1][1])#format position as position data type
-        server.players[str(ip) + ':' + str(port)] = playerData#add to player dictionary
+        #server.players[str(ip) + ':' + str(port)] = playerData#add to player dictionary
 
     def player_update(self, ip, port, playerData, packet_pass):#on player update
         self.sendPacket(ip, port, packet_pass)#send the packet to everyone
         playerData[1] = pos(playerData[1][0], playerData[1][1])#format position as position data type
-        server.players[str(ip) + ':' + str(port)] = playerData#update the dictionary of players
+        server.players[server.conn[str(ip) + ':' + str(port)]] = playerData#update the dictionary of players
         #print(ip + " " + str(server.players[ip][1].x) + ", " + str(server.players[ip][1].y))
 
     def player_idle(self, ip, port, packet_pass):#if player idle
@@ -107,9 +107,18 @@ class packet_handler:#packet handler
     def login(self, ip, port, userdata, connection):
         user = self.db.checkUser(userdata[0])
         if user:
-            if user.password == scrypt.hash(userdata[1], user.uid):
-                toSend = json.dumps(["login", True])
+            if user.password == scrypt.hash(userdata[1], user.uid).hex():
+                toSend = json.dumps(["login", True, "server"])
                 connection.send(toSend.encode())
+
+                self.connections.append([connection, [ip, port]])  # append the connection and ip data to the connections list
+                self.sendInit(connection, server.players)  # send the initializing packet to new player
+
+                server.conn[str(ip) + ":" + str(port)] = user.username
+            else:
+                toSend = json.dumps(["login", False, "server"])
+                connection.send(toSend.encode())
+
 
     def register(self, ip, port, userdata):
         self.db.newUser(userdata[0], userdata[1], "")
@@ -118,7 +127,7 @@ class packet_handler:#packet handler
         data = copy.deepcopy(dataREF)#deep copy the data to avoid overwriting
         for connection in server.connections:#for each connection
             if not(str(connection[1][0]) == ip and str(connection[1][1]) == port):#if it is not the sender of the packet
-                data.append(str(ip) + ':' + str(port))#append who sent it
+                data.append(server.conn[str(ip) + ':' + str(port)])#append who sent it
                 toSend = json.dumps(data) + "\n"#packet queue implmentation
                 connection[0].send(toSend.encode())#send the packet
 
@@ -161,9 +170,6 @@ class commandHandler:#command handler class
                 if len(temp) > 1:#if there are any arguments
                     args = temp[1:]#set args equal to them
 
-                print(cmd)
-                print(args)
-
                 if cmd == "list":#if the command is list
                     print(server.players)#list all players
                 elif cmd in ["stop", "sotp"]:#if the command is to stop
@@ -204,10 +210,11 @@ class Server:#main server class
                 data = c.recv(1024)#recieve a set amount of data
                 self.packet.handlePacket(data, str(a[0]), str(a[1]), c)#send it to be parsed
             except:#if a disconnect from socket (errors out lol)
-                print(str(a[0]) + ':' + str(a[1]), "disconnected")#print to console of server who disconnected
+                print(server.conn[str(a[0]) + ':' + a[1]] + "disconnected")#print to console of server who disconnected
                 self.connections.remove([c, a])#remove it from connections list
                 c.close()#close the connection
-                del self.players[str(a[0]) + ":" +  str(a[1])] #remove the user from the players dictionary
+                del self.players[server.conn[str(a[0]) + ':' + a[1]]] #remove the user from the players dictionary
+                del self.conn[str(a[0]) + ':' + a[1]]
                 self.packet.sendDisconnect(str(a[0]) + ":" +  str(a[1]))#send a packet to the remaining players
                 break#stop the loop and then resulting in the stopping of the thread
 
@@ -220,9 +227,7 @@ class Server:#main server class
             lThread.daemon = True#daemon thread
             lThread.start()#start thread
 
-            self.connections.append([c, a])#append the connection and ip data to the connections list
             print(str(a[0]) + ':' + str(a[1]), "connected")#print to console user connected
-            self.packet.sendInit(c, server.players)#send the initializing packet to new player
 
 # Below adds to database
 # Dont do multiple times, multiple users cannot have the same ids
