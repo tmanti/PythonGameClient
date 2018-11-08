@@ -14,10 +14,6 @@ from sqlalchemy.orm import sessionmaker
 # db base declaration
 Base = declarative_base()
 
-engine = create_engine("sqlite:///database.db")  # create engine (ref to db)
-Base.metadata.create_all(engine)  # create all metadata based on ref to db
-DBSession = sessionmaker(bind=engine)  # create a session
-
 class User(Base):#user class (for DB)
     __tablename__ = "User"#table name to be put under
     uid = Column(Integer, primary_key=True, unique=True)
@@ -28,13 +24,17 @@ class User(Base):#user class (for DB)
     def __repr__(self):#a return function of helpful information
         return "<User id=%d username=%s stats=%s>" % (self.uid, self.username, self.userdata)
 
+engine = create_engine("sqlite:///database.db")  # create engine (ref to db)
+Base.metadata.create_all(engine)  # create all metadata based on ref to db
+DBSession = sessionmaker(bind=engine)  # create a session
+
 class dbInterface():
     session = DBSession()  # reference to session
 
     def newUser(self, username, password, userdata):#function to create a new user for the CLI
         uid = str(uuid.uuid4())
         password = scrypt.hash(password, uid)
-        self.session.add(User(id=uid, username=username, password=password,userdata=userdata))  # add a new user using the specified arguments
+        self.session.add(User(uid=uid, username=username, password=password,userdata=userdata))  # add a new user using the specified arguments
         self.session.commit()  # commit to db
 
     def checkUser(self, username):#check if the user exists and return the user
@@ -52,9 +52,10 @@ class dbInterface():
             self.session.commit()
         else:
             print("no user found")
+            return None
 
     def allUsers(self):
-        print(self.session.query(User).all())  # print all Users in DB
+        return self.session.query(User).all()  # print all Users in DB
 
 class pos():#position data type
     def __init__(self, x, y):
@@ -160,8 +161,8 @@ class commandHandler:#command handler class
                 if len(temp) > 1:#if there are any arguments
                     args = temp[1:]#set args equal to them
 
-                #print(cmd)
-                #print(args)
+                print(cmd)
+                print(args)
 
                 if cmd == "list":#if the command is list
                     print(server.players)#list all players
@@ -175,7 +176,7 @@ class commandHandler:#command handler class
                         else:
                             print("usage: user <new/create> <username> <password> <userdata>")
                     elif args[0] == "all":#if qrgument is all
-                        self.db.allUsers()
+                        print(self.db.allUsers())
                     elif args[0] in ["delete", "remove"]:#if arguemnt is to delete and there is a second argument
                         if len(args) == 2:#if enough arguments
                             self.db.deleteUser(args[1])#delete a user of username inputed
