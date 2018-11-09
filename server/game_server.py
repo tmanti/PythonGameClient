@@ -38,35 +38,34 @@ class dbInterface():
         self.session.commit()  # commit to db
 
     def auth(self, userdata, connection, ip, port):
-        user = self.checkUser(userdata[0])
-        if user:
-            if user.password == userdata[1]:  # scrypt.hash(userdata[1], user.uid).hex():
-                toSend = json.dumps(["login", True, "server"])
-                connection.send(toSend.encode())
+        user = self.checkUser(userdata[0])#get ref to user
+        if user:#if exists
+            if user.password == userdata[1]:  # scrypt.hash(userdata[1], user.uid).hex():#password check
+                toSend = json.dumps(["login", True, "server"])#send login packet
+                connection.send(toSend.encode())#send the packet
 
-                server.connections.append(
-                    [connection, [ip, port]])  # append the connection and ip data to the connections list
+                server.connections.append([connection, [ip, port]])  # append the connection and ip data to the connections list
                 self.sendInit(connection, server.players)  # send the initializing packet to new player
 
-                server.cus.add(str(ip) + ":" + str(port), user.username)
+                server.cus.add(str(ip) + ":" + str(port), user.username)#add user data to dicts
             else:
-                toSend = json.dumps(["login", False, "server"])
-                connection.send(toSend.encode())
+                toSend = json.dumps(["login", False, "server"])#if failed auth send failed packet
+                connection.send(toSend.encode())#send packet
 
     def checkUser(self, username):#check if the user exists and return the user
-        userRef = self.session.query(User).filter_by(username=username).first()
-        if userRef:
-            return userRef
+        userRef = self.session.query(User).filter_by(username=username).first()#get reference to user
+        if userRef:#if exists
+            return userRef#return it
         else:
             print("no users found")
             return None
 
-    def deleteUser(self, username):
-        userRef = self.session.query(User).filter_by(username=username).first()
-        if userRef:
-            self.session.delete(userRef)
-            self.session.commit()
-        else:
+    def deleteUser(self, username):#delete a user from db
+        userRef = self.session.query(User).filter_by(username=username).first()#reference to user
+        if userRef:#if exists
+            self.session.delete(userRef)#delete user
+            self.session.commit()#commit to db
+        else:#not found
             print("no user found")
             return None
 
@@ -82,13 +81,13 @@ class connectedUserStorage():
     playerUsername = {} #username to ip
     playerIp = {} #ip to username
 
-    def add(self, ip, username):
-        self.playerUsername[username] = ip
-        self.playerIp[ip] = username
+    def add(self, ip, username):#add new user to dictionaries
+        self.playerUsername[username] = ip#add the username to ip
+        self.playerIp[ip] = username#add the ip to username
 
-    def remove(self, ip):
-        del self.playerUsername[self.playerIp[ip]]
-        del self.playerIp[ip]
+    def remove(self, ip):#remove from dictionaries
+        del self.playerUsername[self.playerIp[ip]]#remove username
+        del self.playerIp[ip]#remove ip
 
 class packet_handler:#packet handler
     db = dbInterface()  # ref to the database interface
@@ -106,11 +105,11 @@ class packet_handler:#packet handler
                 if packetType == "playerJoin":#if the packet type is a player join
                     self.player_connect(ip, port, packetData, data)#run player connect method
 
-                if packetType == "login":
-                    self.login(ip, port, packetData, connection)
+                if packetType == "login":#if the packet is a login packet
+                    self.login(ip, port, packetData, connection)#run the login method using the parameters
 
-                if packetType == "register":
-                    self.register(ip, port, packetData)
+                if packetType == "register":#if the packet is a register packet
+                    self.register(ip, port, packetData)#run the register method
 
                 if packetType == "playerUpdate":#if it is a player update
                     self.player_update(ip, port, packetData, data)#run player update method
@@ -132,11 +131,11 @@ class packet_handler:#packet handler
     def player_idle(self, ip, port, packet_pass):#if player idle
         self.sendPacket(ip, port, packet_pass)#send to all other players (really just to stop the anim)
 
-    def login(self, ip, port, userdata, connection):
-        self.db.auth(userdata, connection, ip, port)
+    def login(self, ip, port, userdata, connection):#method to authenticate the user
+        self.db.auth(userdata, connection, ip, port)#run authentication method
 
-    def register(self, ip, port, userdata):
-        self.db.newUser(userdata[0], userdata[1], "")
+    def register(self, ip, port, userdata):#method to create a new user
+        self.db.newUser(userdata[0], userdata[1], "")#run method from db interface to create a new user
 
     def sendPacket(self, ip, port, dataREF):#a method to send a packet to everyone connected
         data = copy.deepcopy(dataREF)#deep copy the data to avoid overwriting
