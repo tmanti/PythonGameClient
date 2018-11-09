@@ -37,6 +37,22 @@ class dbInterface():
         self.session.add(User(uid=uid, username=username, password=password,userdata=userdata))  # add a new user using the specified arguments
         self.session.commit()  # commit to db
 
+    def auth(self, userdata, connection, ip, port):
+        user = self.checkUser(userdata[0])
+        if user:
+            if user.password == userdata[1]:  # scrypt.hash(userdata[1], user.uid).hex():
+                toSend = json.dumps(["login", True, "server"])
+                connection.send(toSend.encode())
+
+                server.connections.append(
+                    [connection, [ip, port]])  # append the connection and ip data to the connections list
+                self.sendInit(connection, server.players)  # send the initializing packet to new player
+
+                server.cus.add(str(ip) + ":" + str(port), user.username)
+            else:
+                toSend = json.dumps(["login", False, "server"])
+                connection.send(toSend.encode())
+
     def checkUser(self, username):#check if the user exists and return the user
         userRef = self.session.query(User).filter_by(username=username).first()
         if userRef:
@@ -87,8 +103,8 @@ class packet_handler:#packet handler
                 packetType = data[0]#get the type
                 packetData = data[1]#get the data
 
-                #if packetType == "playerJoin":#if the packet type is a player join
-                    #self.player_connect(ip, port, packetData, data)#run player connect method
+                if packetType == "playerJoin":#if the packet type is a player join
+                    self.player_connect(ip, port, packetData, data)#run player connect method
 
                 if packetType == "login":
                     self.login(ip, port, packetData, connection)
@@ -105,7 +121,7 @@ class packet_handler:#packet handler
     def player_connect(self, ip, port, playerData, packet_pass):#on player connect
         self.sendPacket(ip, port, packet_pass)#send a packet to all other players (same packet recieved)
         playerData[1] = pos(playerData[1][0], playerData[1][1])#format position as position data type
-        #server.players[str(ip) + ':' + str(port)] = playerData#add to player dictionary
+        server.players[server.cus.playerIp[str(ip) + ':' + str(port)]] = playerData#add to player dictionary
 
     def player_update(self, ip, port, playerData, packet_pass):#on player update
         self.sendPacket(ip, port, packet_pass)#send the packet to everyone
@@ -117,20 +133,7 @@ class packet_handler:#packet handler
         self.sendPacket(ip, port, packet_pass)#send to all other players (really just to stop the anim)
 
     def login(self, ip, port, userdata, connection):
-        user = self.db.checkUser(userdata[0])
-        if user:
-            if user.password == userdata[1]:#scrypt.hash(userdata[1], user.uid).hex():
-                toSend = json.dumps(["login", True, "server"])
-                connection.send(toSend.encode())
-
-                server.connections.append([connection, [ip, port]])  # append the connection and ip data to the connections list
-                self.sendInit(connection, server.players)  # send the initializing packet to new player
-
-                server.cus.add(str(ip) + ":" + str(port), user.username)
-            else:
-                toSend = json.dumps(["login", False, "server"])
-                connection.send(toSend.encode())
-
+        self.db.auth(userdata, connection, ip, port)
 
     def register(self, ip, port, userdata):
         self.db.newUser(userdata[0], userdata[1], "")
