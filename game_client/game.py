@@ -184,8 +184,8 @@ class packet_handler:
         toSend = json.dumps(data)+"\n"
         client.sock.send(toSend.encode())
 
-    #def player_join(self, playerData):
-        #self.send(["playerJoin", playerData])
+    def player_join(self, playerData):
+        self.send(["playerJoin", playerData])
 
     def player_update(self, playerData):
         self.send(["playerUpdate", playerData])
@@ -204,7 +204,7 @@ class Client:
     packet = packet_handler()
     playerList = {}
 
-    auth = False
+    auth = None
 
     #def sendMsg(self):
         #while True:
@@ -402,11 +402,14 @@ while True:
         a = True
         while a:
             if client.auth == True:
-
-            elif client.authAttempt == True:
-                print("auth failed")
-
-        break
+                print("successfully logged in, check the game window!")
+                a=False
+            elif client.auth == False:
+                print("auth failed, try again")
+                client.auth = None
+                break
+        else:
+            break
     elif authType == "register":
         auth = False
         while not auth:
@@ -416,8 +419,6 @@ while True:
             if yesOrNo in ["yes", "y"]:
                 client.packet.send_register([username, password])
                 auth = True
-                for x in range(100):
-                    print("\n")
     else:
         print("that response is invalid")
 
@@ -433,7 +434,7 @@ player = Player(playerStartStats)
 #p2 = server_player([0, pos(50, 50), 5])
 #client.playerList.append(p2)
 
-#client.packet.player_join(player.player_data())
+client.packet.player_join(player.player_data())
 
 for row in range(0, 64*4, 8*4):#for row in map
     for col in range(0, 64*4, 8*4):#for col in map

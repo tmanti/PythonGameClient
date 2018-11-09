@@ -3,7 +3,7 @@ import socket
 import json
 import copy
 import uuid
-import scrypt
+#import scrypt
 
 from sqlalchemy import Table, Column, ForeignKey, Integer, MetaData, Text, String
 from sqlalchemy.ext.declarative import declarative_base
@@ -33,7 +33,7 @@ class dbInterface():
 
     def newUser(self, username, password, userdata):#function to create a new user for the CLI
         uid = str(uuid.uuid4())
-        password = scrypt.hash(password, uid).hex()
+        #password = scrypt.hash(password, uid).hex()
         self.session.add(User(uid=uid, username=username, password=password,userdata=userdata))  # add a new user using the specified arguments
         self.session.commit()  # commit to db
 
@@ -61,6 +61,18 @@ class pos():#position data type
     def __init__(self, x, y):
         self.x = x
         self.y = y
+
+class connectedUserStorage():
+    playerUsername = {} #username to ip
+    playerIp = {} #ip to username
+
+    def add(self, ip, username):
+        self.playerUsername[username] = ip
+        self.playerIp[ip] = username
+
+    def remove(self, ip):
+        del self.playerUsername[self.playerIp[ip]]
+        del self.playerIp[ip]
 
 class packet_handler:#packet handler
     db = dbInterface()  # ref to the database interface
@@ -98,7 +110,7 @@ class packet_handler:#packet handler
     def player_update(self, ip, port, playerData, packet_pass):#on player update
         self.sendPacket(ip, port, packet_pass)#send the packet to everyone
         playerData[1] = pos(playerData[1][0], playerData[1][1])#format position as position data type
-        server.players[server.conn[str(ip) + ':' + str(port)]] = playerData#update the dictionary of players
+        server.players[server.cus.playerIp[str(ip) + ':' + str(port)]] = playerData#update the dictionary of players
         #print(ip + " " + str(server.players[ip][1].x) + ", " + str(server.players[ip][1].y))
 
     def player_idle(self, ip, port, packet_pass):#if player idle
@@ -107,14 +119,14 @@ class packet_handler:#packet handler
     def login(self, ip, port, userdata, connection):
         user = self.db.checkUser(userdata[0])
         if user:
-            if user.password == scrypt.hash(userdata[1], user.uid).hex():
+            if user.password == userdata[1]:#scrypt.hash(userdata[1], user.uid).hex():
                 toSend = json.dumps(["login", True, "server"])
                 connection.send(toSend.encode())
 
-                self.connections.append([connection, [ip, port]])  # append the connection and ip data to the connections list
+                server.connections.append([connection, [ip, port]])  # append the connection and ip data to the connections list
                 self.sendInit(connection, server.players)  # send the initializing packet to new player
 
-                server.conn[str(ip) + ":" + str(port)] = user.username
+                server.cus.add(str(ip) + ":" + str(port), user.username)
             else:
                 toSend = json.dumps(["login", False, "server"])
                 connection.send(toSend.encode())
@@ -127,7 +139,7 @@ class packet_handler:#packet handler
         data = copy.deepcopy(dataREF)#deep copy the data to avoid overwriting
         for connection in server.connections:#for each connection
             if not(str(connection[1][0]) == ip and str(connection[1][1]) == port):#if it is not the sender of the packet
-                data.append(server.conn[str(ip) + ':' + str(port)])#append who sent it
+                data.append(server.cus.playerIp[str(ip) + ':' + str(port)])#append who sent it
                 toSend = json.dumps(data) + "\n"#packet queue implmentation
                 connection[0].send(toSend.encode())#send the packet
 
@@ -172,6 +184,8 @@ class commandHandler:#command handler class
 
                 if cmd == "list":#if the command is list
                     print(server.players)#list all players
+                    print(server.cus.playerIp)
+                    print(server.cus.playerUsername)
                 elif cmd in ["stop", "sotp"]:#if the command is to stop
                     print("Stopping Server")#stop the server IO
                     exit()
@@ -194,7 +208,7 @@ class commandHandler:#command handler class
 class Server:#main server class
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)#reference to used socket
     connections = []#connections array
-    conn = {}
+    cus = connectedUserStorage()
     players = {}#connected players dictionary
     packet = packet_handler()#reference to packet handler
 
@@ -203,6 +217,13 @@ class Server:#main server class
         self.sock.bind(('0.0.0.0', 10000))#bind to socket
         self.sock.listen(1)#begin listening on the socket
 
+    def closeConnection(self, c, a):
+        print(self.cus.playerIp[str(a[0]) + ':' + a[1]] + "disconnected")  # print to console of server who disconnected
+        self.connections.remove([c, a])  # remove it from connections list
+        c.close()  # close the connection
+        del self.players[self.cus.playerIp[str(a[0]) + ':' + a[1]]]  # remove the user from the players dictionary
+        self.cus.remove(str(a[0]) + ':' + a[1])
+        self.packet.sendDisconnect(str(a[0]) + ":" + str(a[1]))  # send a packet to the remaining players
 
     def handler(self, c, a):#packet handler (normally a thread)
         while True:#forever loop
@@ -210,13 +231,7 @@ class Server:#main server class
                 data = c.recv(1024)#recieve a set amount of data
                 self.packet.handlePacket(data, str(a[0]), str(a[1]), c)#send it to be parsed
             except:#if a disconnect from socket (errors out lol)
-                print(server.conn[str(a[0]) + ':' + a[1]] + "disconnected")#print to console of server who disconnected
-                self.connections.remove([c, a])#remove it from connections list
-                c.close()#close the connection
-                del self.players[server.conn[str(a[0]) + ':' + a[1]]] #remove the user from the players dictionary
-                del self.conn[str(a[0]) + ':' + a[1]]
-                self.packet.sendDisconnect(str(a[0]) + ":" +  str(a[1]))#send a packet to the remaining players
-                break#stop the loop and then resulting in the stopping of the thread
+                self.closeConnection(c, a)
 
     def run(self):#main server loop
         while True:# main server loop
