@@ -150,8 +150,9 @@ class packet_handler:
                     self.login(packetData)
 
     def init_playerList(self, packetData):
+        print(packetData)
         for x in packetData:
-            packetData[x][1] = pos(packetData[x][1][0], packetData[x][1][1])
+            packetData[x][0] = pos(packetData[x][1][0], packetData[x][1][1])
             packetData[x] = server_player(packetData[x])
         client.playerList = packetData
 

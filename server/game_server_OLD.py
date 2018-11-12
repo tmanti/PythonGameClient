@@ -138,7 +138,7 @@ class packet_handler:#packet handler
         self.db.auth(userdata, connection, ip, port)#run authentication method
 
     def register(self, ip, port, userdata):#method to create a new user
-        self.db.newUser(userdata[0], userdata[1], "")#run method from db interface to create a new user
+        self.db.newUser(userdata[0], userdata[1], [0, pos(50, 50), 3])#run method from db interface to create a new user
 
     def sendPacket(self, ip, port, dataREF):#a method to send a packet to everyone connected
         data = copy.deepcopy(dataREF)#deep copy the data to avoid overwriting
@@ -149,6 +149,7 @@ class packet_handler:#packet handler
                 connection[0].send(toSend.encode())#send the packet
 
     def sendInit(self, connection, dataREF):#method to send online player dictionary to new players
+        print(dataREF)
         data = copy.deepcopy(dataREF)#deep copy to avoid overwrites
         for x in data:#for each data
             data[x][1] = [data[x][1].x, data[x][1].y]#set to an array so it can be parsed by json

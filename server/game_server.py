@@ -27,14 +27,10 @@ engine = create_engine("sqlite:///database.db")  # create engine (ref to db)
 Base.metadata.create_all(engine)  # create all metadata based on ref to db
 DBSession = sessionmaker(bind=engine)  # create a session
 
-class pos():#position data type
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-
-class connection:
-    def __init__(self, name, data):
+class player:
+    def __init__(self, name, uid, data):
         self.name = name
+        self.uid = uid
         self.data = data
 
 class dbInterface():
@@ -53,6 +49,10 @@ class dbInterface():
             if user.password == userdata[1]:  # scrypt.hash(userdata[1], user.uid).hex():#password check
                 toSend = json.dumps(["login", True, "server"])#send login packet
                 connection.send(toSend.encode())#send the packet
+
+                p = player(user.username, user.uid, user.userdata.decode())
+
+                server.players[address] = p
 
                 server.connections[address][2].sendInit(server.players)  # send the initializing packet to new player
                 server.connections[address][1] = True#set the auth'd tag to true
@@ -90,7 +90,7 @@ class packet_handler:
         self.db = dbInterface()
 
 
-    def handlePacket(self, packet_pass, ip, port):#called when packet recieved
+    def handlePacket(self, packet_pass):#called when packet recieved
         #print(packet_pass.decode())
         dataDecode = packet_pass.decode()#decode the packet
         packetQueue = dataDecode.split("\n")#split the packetqueue
@@ -127,25 +127,68 @@ class packet_handler:
         self.db.auth(userdata, self.connection, self.address)#run authentication method
 
     def register(self, userdata):#method to create a new user
-        self.db.newUser(userdata[0], userdata[1], "")#run method from db interface to create a new user
+        self.db.newUser(userdata[0], userdata[1], json.dumps([0, [50, 50], 3]))#run method from db interface to create a new user
 
     def player_connect(self, playerData, packet_pass):#on player connect
         self.sendAll(packet_pass)#send a packet to all other players (same packet recieved)
-        playerData[1] = pos(playerData[1][0], playerData[1][1])#format position as position data type
         server.players[self.address].data = playerData#add to player dictionary
 
     def player_update(self, playerData, packet_pass):#on player update
         self.sendAll(packet_pass)#send the packet to everyone
-        playerData[1] = pos(playerData[1][0], playerData[1][1])#format position as position data type
         server.players[self.self.address].data = playerData#update the dictionary of players
 
     def player_idle(self, packet_pass):#if player idle
         self.sendAll(packet_pass)#send to all other players (really just to stop the anim)
 
     def sendInit(self, dataREF):#method to send online player dictionary to new players
-        data = copy.deepcopy(dataREF.data)#deep copy to avoid overwrites
-        toSend = json.dumps(["init", data, "server"])#dump it to json to send
+        data = copy.deepcopy(dataREF)#deep copy to avoid overwrites
+        sendable = {}
+        for x in data:
+            ref = data[x]
+            sendable[ref.name] = [ref.data]
+        toSend = json.dumps(["init", sendable, "server"])#dump it to json to send
         self.connection.send(toSend.encode())#send
+
+class commandHandler:#command handler class
+    db = dbInterface()#ref to the database interface
+
+    def __init__(self):#on init
+        commandThread = threading.Thread(target=self.commands)#create the command thread
+        commandThread.daemon = True#daemon
+        commandThread.start()#start thread
+
+    def commands(self):#running in the command thread
+        while True:#loop
+            temp = input()
+            temp = temp.split()
+            if len(temp) > 0:#check if there is anything there
+                temp = [_.lower() for _ in temp]#lowercase all arguments
+                cmd = temp[0]#get command header
+                args = []#create an empty args array
+                if len(temp) > 1:#if there are any arguments
+                    args = temp[1:]#set args equal to them
+
+                if cmd == "list":#if the command is list
+                    print(server.players)#list all players
+                    print(server.connections)
+                elif cmd in ["stop", "sotp"]:#if the command is to stop
+                    print("Stopping Server")#stop the server IO
+                    exit()
+                elif cmd == "user" and len(args) is not 0:#if the command is user
+                    if args[0] in ["create", "new"]:#create argument?
+                        if len(args) == 4:
+                            self.db.newUser(args[1], args[2], args[3])#create a new user using inputted parameters
+                        else:
+                            print("usage: user <new/create> <username> <password> <userdata>")
+                    elif args[0] == "all":#if qrgument is all
+                        print(self.db.allUsers())
+                    elif args[0] in ["delete", "remove"]:#if arguemnt is to delete and there is a second argument
+                        if len(args) == 2:#if enough arguments
+                            self.db.deleteUser(args[1])#delete a user of username inputed
+                        else:
+                            print("usage: user <delete, remove> <username>")
+                elif len(args) == 0 and cmd == "user":
+                    print("Usage: user <create, new, all, delete, remove>")
 
 class server:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)#reference to used socket
@@ -153,6 +196,7 @@ class server:
     players = {}
 
     def __init__(self):
+        self.cmd = commandHandler()
         self.sock.bind(('0.0.0.0', 10000))  # bind to socket
         self.sock.listen(1)  # begin listening on the socket
 
@@ -163,12 +207,17 @@ class server:
         del self.players[str(a[0]) + ":" + str(a[1])]  # remove the user from the players dictionary
         p.sendDisconnect(str(a[0]) + ":" + str(a[1]))  # send a packet to the remaining players
 
+        toSend = json.dumps(["disconnect", str(a[0]) + ":" + str(a[1]), "server"])#prepare packet
+
+        for c in self.connections:
+            self.connections[c][0].send(toSend.encode())
+
     def handler(self, c, a, userData):
         packet = userData[2]
         while True:
             try:  # try this
                 data = c.recv(1024)  # recieve a set amount of data
-                packet.handlePacket(data, str(a[0]), str(a[1]), c)  # send it to be parsed
+                packet.handlePacket(data)  # send it to be parsed
             except:  # if a disconnect from socket (errors out lol)
                 self.closeConnection(c, a, packet)
 
@@ -186,3 +235,6 @@ class server:
             lThread.start()  # start thread
 
             print(str(a[0]) + ':' + str(a[1]), "connected")  # print to console user connected
+
+server = server()
+server.run()
