@@ -50,11 +50,11 @@ class dbInterface():
                 toSend = json.dumps(["login", True, "server"])#send login packet
                 connection.send(toSend.encode())#send the packet
 
-                p = player(user.username, user.uid, user.userdata.decode())
+                server.connections[address][2].sendInit(server.players)  # send the initializing packet to new player
+
+                p = player(user.username, user.uid, json.loads(user.userdata))
 
                 server.players[address] = p
-
-                server.connections[address][2].sendInit(server.players)  # send the initializing packet to new player
                 server.connections[address][1] = True#set the auth'd tag to true
             else:
                 toSend = json.dumps(["login", False, "server"])#if failed auth send failed packet
@@ -79,6 +79,14 @@ class dbInterface():
 
     def allUsers(self):
         return self.session.query(User).all()  # print all Users in DB
+
+    def saveData(self, uid, data):
+        userRef = self.session.query(User).filter_by(uid=uid).first()  # reference to user
+        if userRef:
+            userRef.userdata = data
+            self.session.commit()
+        else:
+            print("error updating user")
 
 class packet_handler:
     def __init__(self, c, ip, port, address):
@@ -111,6 +119,7 @@ class packet_handler:
 
                 if packetType == "playerUpdate":#if it is a player update
                     self.player_update(packetData, data)#run player update method
+                    print(server.players[self.address].name)
 
                 if packetType == "playerIdle":#if it is an idle packet
                     self.player_idle(data)#run player idle message
@@ -120,8 +129,9 @@ class packet_handler:
         data.append(server.players[self.address].name)  # append who sent it
         toSend = json.dumps(data) + "\n"  # packet queue implmentation
         for connection in server.connections:#for each connection
-            if server.connections[connection][1] == True and connection is not self.address:
-                self.connection.send(toSend.encode())
+            print(server.connections)
+            if server.connections[connection][1] == True and connection != self.address:
+                server.connections[connection][0].send(toSend.encode())
 
     def login(self, userdata):#method to authenticate the user
         self.db.auth(userdata, self.connection, self.address)#run authentication method
@@ -130,12 +140,12 @@ class packet_handler:
         self.db.newUser(userdata[0], userdata[1], json.dumps([0, [50, 50], 3]))#run method from db interface to create a new user
 
     def player_connect(self, playerData, packet_pass):#on player connect
-        self.sendAll(packet_pass)#send a packet to all other players (same packet recieved)
+        self.sendAll(["playerJoin", server.players[self.address].data])#send a packet to all other players (same packet recieved)
         server.players[self.address].data = playerData#add to player dictionary
 
     def player_update(self, playerData, packet_pass):#on player update
         self.sendAll(packet_pass)#send the packet to everyone
-        server.players[self.self.address].data = playerData#update the dictionary of players
+        server.players[self.address].data = playerData#update the dictionary of players
 
     def player_idle(self, packet_pass):#if player idle
         self.sendAll(packet_pass)#send to all other players (really just to stop the anim)
@@ -145,7 +155,7 @@ class packet_handler:
         sendable = {}
         for x in data:
             ref = data[x]
-            sendable[ref.name] = [ref.data]
+            sendable[ref.name] = ref.data
         toSend = json.dumps(["init", sendable, "server"])#dump it to json to send
         self.connection.send(toSend.encode())#send
 
@@ -191,6 +201,7 @@ class commandHandler:#command handler class
                     print("Usage: user <create, new, all, delete, remove>")
 
 class server:
+    threads = {}
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)#reference to used socket
     connections = {}
     players = {}
@@ -201,16 +212,18 @@ class server:
         self.sock.listen(1)  # begin listening on the socket
 
     def closeConnection(self, c, a, p):
-        print(self.connections[str(a[0]) + ":" + str(a[1])] + "disconnected")  # print to console of server who disconnected
-        del self.connections[str(a[0]) + ":" + str(a[1])]
-        c.close()  # close the connection
-        del self.players[str(a[0]) + ":" + str(a[1])]  # remove the user from the players dictionary
-        p.sendDisconnect(str(a[0]) + ":" + str(a[1]))  # send a packet to the remaining players
+        try:
+            print(str(a[0]) + ":" + str(a[1]) + " disconnected")  # print to console of server who disconnected
+            toSend = json.dumps(["disconnect", self.players[str(a[0]) + ":" + str(a[1])].name, "server"])#prepare packet
+            p.db.saveData(self.players[str(a[0]) + ":" + str(a[1])].uid, json.dumps(self.players[str(a[0]) + ":" + str(a[1])].data))
+            del self.connections[str(a[0]) + ":" + str(a[1])]
+            c.close()  # close the connection
+            del self.players[str(a[0]) + ":" + str(a[1])]  # remove the user from the players dictionary
 
-        toSend = json.dumps(["disconnect", str(a[0]) + ":" + str(a[1]), "server"])#prepare packet
-
-        for c in self.connections:
-            self.connections[c][0].send(toSend.encode())
+            for c in self.connections:
+                self.connections[c][0].send(toSend.encode())
+        except:
+            pass
 
     def handler(self, c, a, userData):
         packet = userData[2]
@@ -220,6 +233,7 @@ class server:
                 packet.handlePacket(data)  # send it to be parsed
             except:  # if a disconnect from socket (errors out lol)
                 self.closeConnection(c, a, packet)
+                break
 
     def run(self):  # main server loop
         while True:  # main server loop
@@ -231,8 +245,8 @@ class server:
 
             # begin listening for player packets
             lThread = threading.Thread(target=self.handler, args=(c, a, self.connections[str(a[0]) + ":" + str(a[1])]))  # begin listening on the socket for them and any packets they send
-            lThread.daemon = True  # daemon thread
             lThread.start()  # start thread
+            self.threads[str(a[0]) + ":" + str(a[1])] = lThread
 
             print(str(a[0]) + ':' + str(a[1]), "connected")  # print to console user connected
 

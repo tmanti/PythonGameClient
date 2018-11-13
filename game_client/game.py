@@ -126,7 +126,6 @@ class pos():
 
 class packet_handler:
     def handlePacket(self, packet_pass):
-        #print(packet_pass.decode())
         dataDecode = packet_pass.decode()
         packetQueue = dataDecode.split("\n")
         for x in packetQueue:
@@ -139,6 +138,7 @@ class packet_handler:
                 if packetType == "playerJoin":
                     self.playerConnect(packetData, address)
                 if packetType == "playerUpdate":
+                    print(packetData)
                     self.playerUpdate(packetData, address)
                 if packetType == "init":
                     self.init_playerList(packetData)
@@ -152,7 +152,7 @@ class packet_handler:
     def init_playerList(self, packetData):
         print(packetData)
         for x in packetData:
-            packetData[x][0] = pos(packetData[x][1][0], packetData[x][1][1])
+            packetData[x][1] = pos(packetData[x][1][0], packetData[x][1][1])
             packetData[x] = server_player(packetData[x])
         client.playerList = packetData
 
@@ -161,6 +161,7 @@ class packet_handler:
         sp = server_player(playerData)
         client.playerList[address] = sp
         player.updatePlayers()
+        print(client.playerList)
 
     def playerDisconnect(self, packetData):
         del client.playerList[packetData]
@@ -178,7 +179,6 @@ class packet_handler:
         client.playerList[address].image = client.playerList[address].playerIdle[data]
 
     def login(self, packetData):
-        print(packetData)
         client.auth = packetData
 
     def send(self, data):
