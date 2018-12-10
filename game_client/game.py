@@ -43,6 +43,7 @@ def text_to_screen(text, x, y):
 
     display.update()
 
+# - - BORROWED CODE - - https://www.pygame.org/wiki/Spritesheet - -
 class SpriteStripAnim(object):
     """sprite strip animator
 
@@ -118,7 +119,7 @@ class spritesheet(object):
         "Loads a strip of images and returns them as a list"
         tups = [(rect[0]+rect[2]*x, rect[1], rect[2], rect[3]) for x in range(image_count)]
         return self.images_at(tups, colorkey)
-
+# - - END BORROWED CODE - -
 class pos():
     def __init__(self, x, y):
         self.x = x
@@ -164,7 +165,9 @@ class packet_handler:
         print(client.playerList)
 
     def playerDisconnect(self, packetData):
+        print(client.playerList)
         del client.playerList[packetData]
+        print(client.playerList)
 
     def playerUpdate(self, playerData, address):
         #try:
@@ -432,9 +435,6 @@ playerStartStats = [0, pos(50, 50), 3]
 
 player = Player(playerStartStats)
 
-#p2 = server_player([0, pos(50, 50), 5])
-#client.playerList.append(p2)
-
 client.packet.player_join(player.player_data())
 
 for row in range(0, 64*4, 8*4):#for row in map
@@ -466,9 +466,6 @@ while run:
     clock.tick(FPS)#tick
 
     player.playerAnim = player.playerIdle[player.lastFaced]# set the anim to idle if nothing was pressed to override it
-
-    #for players in client.playerList:
-        #client.playerList[players].image = client.playerList[players].playerIdle[client.playerList[players].lastFaced]
 
 p.quit()
 quit()
